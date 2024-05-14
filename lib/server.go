@@ -11,18 +11,18 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-type MiddlewareFunc func(http.ResponseWriter, *http.Request, httprouter.Params)
+type MiddlewareFunc func(next httprouter.Handle) httprouter.Handle
 
 type Server struct {
 	httpServer  *http.Server
-	router      httprouter.Router
+	router      *httprouter.Router
 	middlewares []MiddlewareFunc
 }
 
 func NewServer() *Server {
 	router := httprouter.New()
 	return &Server{
-		router: *router,
+		router: router,
 		httpServer: &http.Server{
 			Handler: router,
 		},
@@ -32,9 +32,8 @@ func NewServer() *Server {
 func (s *Server) applyMiddlewares(handler httprouter.Handle) httprouter.Handle {
 	return func(res http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		for _, middleware := range s.middlewares {
-			middleware(res, req, params)
+			middleware(handler)(res, req, params)
 		}
-		handler(res, req, params)
 	}
 }
 
