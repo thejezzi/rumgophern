@@ -1,12 +1,11 @@
 package lib
 
 import (
-	"context"
 	"gocontext/config"
 )
 
-func InitConfig(ctx context.Context) context.Context {
+func InitConfig() *config.SuperSecretConfig {
 	c := config.NewSuperSecretConfig()
-	c.SetValue("key1", "key2", "key", 42)
-	return context.WithValue(ctx, config.MyKey, c.Unwrap())
+	c.SetValue("a", "b", "c", 1)
+	return c
 }

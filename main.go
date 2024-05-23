@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -25,9 +26,11 @@ func main() {
 
 	srvAwaiter := lib.NewAwaiter()
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = lib.InitConfig(ctx)
+	cfg := lib.InitConfig()
 
-	go runServer(ctx, listener, srvAwaiter)
+	go runConfigUpdate(cfg)
+	go runServer(ctx, listener, srvAwaiter, cfg)
+	// go callServer()
 	go await(ctx, shutdownComplete, srvAwaiter)
 
 	<-c
@@ -43,6 +46,37 @@ func main() {
 	}
 }
 
+func callServer() {
+	i := 0
+	for range time.Tick(1 * time.Millisecond) {
+		client := http.Client{}
+		_, err := client.Get("http://[::1]:3000/")
+		if err != nil {
+			fmt.Printf("Error calling server: %s\n", err)
+			return
+		}
+
+		if i == 10 {
+			fmt.Printf("#")
+			i = 0
+			continue
+		}
+		i++
+	}
+}
+
+func runConfigUpdate(cfg *config.SuperSecretConfig) {
+	for {
+		time.Sleep(2 * time.Second)
+		v, ok := cfg.GetValue("a", "b", "c")
+		if !ok {
+			fmt.Println("Cannot find value")
+			v = -1
+		}
+		cfg.SetValue("a", "b", "c", v+1)
+	}
+}
+
 func await(ctx context.Context, done chan struct{}, awaiters ...*lib.Awaiter) {
 	<-ctx.Done()
 	for _, awaiter := range awaiters {
@@ -52,18 +86,24 @@ func await(ctx context.Context, done chan struct{}, awaiters ...*lib.Awaiter) {
 	close(done)
 }
 
-func runServer(ctx context.Context, listener net.Listener, awaiter *lib.Awaiter) {
+func runServer(ctx context.Context, listener net.Listener, awaiter *lib.Awaiter, cfg *config.SuperSecretConfig) {
 	server := lib.NewServer()
 
 	server.Middleware(func(next httprouter.Handle) httprouter.Handle {
 		return func(res http.ResponseWriter, req *http.Request, params httprouter.Params) {
-			c, ok := ctx.Value(config.MyKey).(*config.MyInnerConfig)
-			if !ok {
-				fmt.Println("Could not get config from context")
-				next(res, req, params)
-			}
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Println("Recovered from panic:", r)
+				}
+			}()
 
-			nctx := context.WithValue(req.Context(), config.MyKey, c)
+			next(res, req, params)
+		}
+	})
+
+	server.Middleware(func(next httprouter.Handle) httprouter.Handle {
+		return func(res http.ResponseWriter, req *http.Request, params httprouter.Params) {
+			nctx := context.WithValue(req.Context(), config.MyKey, cfg.Unwrap())
 			next(res, req.WithContext(nctx), params)
 		}
 	})

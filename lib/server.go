@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -96,24 +95,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) Middleware(middleware MiddlewareFunc) {
 	s.middlewares = append(s.middlewares, middleware)
-}
-
-func LogRequestMiddleware(res http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	b := strings.Builder{}
-	b.WriteString(req.Method)
-	b.WriteString(" ")
-	b.WriteString(req.URL.Path)
-	b.WriteString(" ")
-	b.WriteString(req.Proto)
-	b.WriteString("\n")
-	b.WriteString("Host: ")
-	b.WriteString(req.Host)
-	b.WriteString("\n")
-	for k, v := range req.Header {
-		b.WriteString(k)
-		b.WriteString(": ")
-		b.WriteString(strings.Join(v, ", "))
-		b.WriteString("\n")
-	}
-	fmt.Println(b.String())
 }
